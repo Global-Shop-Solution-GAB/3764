@@ -1,0 +1,220 @@
+Program.Sub.ScreenSU.Start
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+
+Variable.UDT.WC.Define("MACHINE",String,"MACHINE")
+Variable.uGlobal.uMach.Declare("WC")
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'Coded by: jct
+'Project Start Date: 12/16/2010
+'Hooks:
+'  16800
+'  16650
+
+
+
+V.Local.sSel.Declare(String)
+V.Local.sSelB.Declare(String)
+V.Local.sSelC.Declare(String)
+V.Local.sJobSuff.Declare(String)
+V.Local.sJob.Declare(String)
+V.Local.sSuffix.Declare(String)
+V.Local.sWC.Declare(String)
+V.Local.sSO.Declare(String)
+V.Local.sMat.Declare(String)
+V.Local.sAddtlSeq.Declare(String)
+V.Local.sJobData.Declare(String)
+V.Local.sNcellFile.Declare(String)
+V.Local.sTmpFIle.Declare(String)
+V.Local.lHndl.Declare(Long)
+V.Local.bExists.Declare(Boolean)
+V.Local.bNest.Declare(Boolean)
+V.Local.iFor.Declare(Long)
+V.Local.iForB.Declare(Long)
+V.Local.iForWC.Declare(Long)
+
+V.Local.sNcellFile.Set("I:\Ncell\GLOBAL_DATA\GSS_TO_NCELL.txt")
+
+F.ODBC.Connection!Con.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+
+F.Intrinsic.Debug.Stop
+F.Intrinsic.File.GetHandle(V.Local.lHndl)
+'F.Intrinsic.Control.If(V.Caller.Hook,=,"16800")
+	F.Intrinsic.File.OpenForWrite(V.Local.sNcellFile,V.Local.lHndl)
+F.Intrinsic.UI.InvokeWaitDialog("Creating NCell Load File")
+
+''get list of applicable workcenters
+'F.ODBC.Connection!Con.OpenRecordsetRO("rstWC","select distinct MACHINE from V_WORKCENTERS where NESTING_INTRFC ='Y' ")
+'	F.Intrinsic.Control.If(V.ODBC.Con!rstWC.EOF,=,False)
+'		F.Intrinsic.Variable.LoadUDTFromRecordset("Con","rstWC","v.uGlobal.uMach",False,0)
+'	F.Intrinsic.Control.EndIf
+'F.ODBC.Con!rstWC.Close
+'
+'
+'F.ODBC.Connection!Con.OpenRecordsetRO("rstWC","select distinct MACHINE from V_WORKCENTERS where NESTING_INTRFC ='Y' ")
+'	F.Intrinsic.Control.If(V.ODBC.Con!rstWC.EOF,=,False)
+'		F.Intrinsic.Variable.LoadUDTFromRecordset("Con","rstWC","v.uGlobal.uMach",False,0)
+'	F.Intrinsic.Control.EndIf
+'F.ODBC.Con!rstWC.Close
+
+
+
+'for each workcnter; get job information for jobs that use that workcenter.
+'F.Intrinsic.Control.For(V.Local.iFor,V.uGlobal.uMach!MACHINE.LBound,V.uGlobal.uMach!MACHINE.UBound,1)
+
+'	F.Intrinsic.String.Concat("select V_JOB_HEADER.JOB + '-' + V_JOB_HEADER.SUFFIX as WO, V_JOB_OPERATIONS.SEQ,rtrim(V_JOB_HEADER.PART) as PART,rtrim(V_JOB_HEADER.DESCRIPTION) as DESCRIPTION,rtrim(V_JOB_OPERATIONS.PART) as WC, V_JOB_OPERATIONS.LMO,V_JOB_OPERATIONS.UNITS_OPEN,V_JOB_OPERATIONS.DATE_START,'NCELLMAT' as NCELLMAT,rtrim(V_JOB_OPERATIONS.CODE_SORT_OPER) as CODE_SORT_OPER from V_JOB_HEADER inner join V_JOB_OPERATIONS on V_JOB_HEADER.JOB=V_JOB_OPERATIONS.JOB and V_JOB_HEADER.SUFFIX=V_JOB_OPERATIONS.SUFFIX where V_JOB_OPERATIONS.PART='",V.uGlobal.uMach(v.Local.iFor)!MACHINE,"' and FLAG_SET_UP<>'Y' and V_JOB_OPERATIONS.FLAG_CLOSED<>'Y'","",V.Local.sSel)
+	F.Intrinsic.String.Concat("select V_JOB_HEADER.JOB + '-' + V_JOB_HEADER.SUFFIX as WO, V_JOB_OPERATIONS.SEQ,rtrim(V_JOB_HEADER.PART) as PART,rtrim(V_JOB_HEADER.DESCRIPTION) as DESCRIPTION,rtrim(V_JOB_OPERATIONS.PART) as WC, V_JOB_OPERATIONS.LMO,V_JOB_OPERATIONS.UNITS_OPEN,V_JOB_OPERATIONS.DATE_START,'NCELLMAT' as NCELLMAT,rtrim(V_JOB_OPERATIONS.CODE_SORT_OPER) as CODE_SORT_OPER from V_JOB_HEADER inner join V_JOB_OPERATIONS on V_JOB_HEADER.JOB=V_JOB_OPERATIONS.JOB and V_JOB_HEADER.SUFFIX=V_JOB_OPERATIONS.SUFFIX where  V_JOB_OPERATIONS.PART='LASR' and FLAG_SET_UP<>'Y' and V_JOB_OPERATIONS.FLAG_CLOSED<>'Y'","",V.Local.sSel)
+	F.ODBC.Connection!Con.OpenRecordsetRO("rstX",V.Local.sSel)
+		F.Intrinsic.Control.DoUntil(V.ODBC.Con!rstX.EOF,=,True)
+			F.ODBC.Con!rstX.Record2String(V.Local.sJobData)
+			F.Intrinsic.String.Replace(V.Local.sJobData,"*!*","~",V.Local.sJobData)
+
+			F.Intrinsic.String.Split(V.Local.sJobData,"~",V.Local.sJobSuff)
+			F.Intrinsic.String.Split(V.Local.sJobSuff(0),"-",V.Local.sJob)
+'			V.Local.sWC.Set(V.Local.sJobSuff(4))
+
+		F.Intrinsic.String.Concat("select PART from JOB_OPERATIONS where LMO='M' and JOB='",V.Local.sJob(0),"' and SUFFIX='",V.Local.sJob(1),"' and SEQ<'",V.ODBC.Con!rstX.FieldVal!SEQ,"' and PART<>'' order by SEQ desc",V.Local.sSelB)
+		F.ODBC.Connection!Con.OpenRecordsetRO("rstB",V.Local.sSelB)
+			F.Intrinsic.Control.If(V.ODBC.Con!rstB.EOF,=,False)
+				V.Local.sMat.Set(V.ODBC.Con!rstB.FieldValTrim!PART)
+			F.Intrinsic.Control.Else
+				V.Local.sMat.Set("")
+			F.Intrinsic.Control.EndIf
+		F.ODBC.Con!rstB.Close
+
+V.Local.sAddtlSeq.Set("")
+V.Local.iForB.Set(0)
+
+		F.Intrinsic.String.Concat("select PART from JOB_OPERATIONS where LMO='L' and JOB='",V.Local.sJob(0),"' and SUFFIX='",V.Local.sJob(1),"' and SEQ>'",V.ODBC.Con!rstX.FieldVal!SEQ,"' and  FLAG_CLOSED<>'Y' and FLAG_SET_UP<>'Y' and PART<>'' order by SEQ",V.Local.sSelB)
+		F.ODBC.Connection!Con.OpenRecordsetRO("rstB",V.Local.sSelB)
+			F.Intrinsic.Control.DoUntil(V.ODBC.Con!rstB.EOF,=,True)
+				F.Intrinsic.Math.Add(V.Local.iForB,1,V.Local.iForB)
+					F.Intrinsic.Control.If(V.Local.iForB,<=,4)
+						F.Intrinsic.Control.If(V.Local.iForB,=,1)
+				F.Intrinsic.String.Concat("~",V.ODBC.Con!rstB.FieldValTrim!PART,V.Local.sAddtlSeq)
+						F.Intrinsic.Control.Else
+							F.Intrinsic.String.Concat(V.Local.sAddtlSeq,"~",V.ODBC.Con!rstB.FieldValTrim!PART,V.Local.sAddtlSeq)
+						F.Intrinsic.Control.EndIf
+					F.Intrinsic.Control.Else
+						F.Intrinsic.Control.ExitDo
+					F.Intrinsic.Control.EndIf
+			F.ODBC.Con!rstB.MoveNext
+			F.Intrinsic.Control.Loop
+		F.ODBC.Con!rstB.Close
+
+
+		F.Intrinsic.String.Concat("select distinct ORDER_NO from ORDER_TO_WO where  JOB='",V.Local.sJob(0),"' and SUFFIX='",V.Local.sJob(1),"' ",V.Local.sSelB)
+		F.ODBC.Connection!Con.OpenRecordsetRO("rstB",V.Local.sSelB)
+			F.Intrinsic.Control.If(V.ODBC.Con!rstB.EOF,=,False)
+				V.Local.sSO.Set(V.ODBC.Con!rstB.FieldValTrim!ORDER_NO)
+			F.Intrinsic.Control.Else
+				V.Local.sSO.Set("")
+			F.Intrinsic.Control.EndIf
+		F.ODBC.Con!rstB.Close
+
+'		F.Intrinsic.String.Concat("select SAR from APSV3_UBDetail where RST='",V.Local.sWC,"' and JOB='",V.Local.sJob(0),"' and SFX='",V.Local.sSuffix,"'",V.Local.sSelB)
+'		F.ODBC.Connection!Con.OpenRecordsetRO("rstB",V.Local.sSelB)
+'			F.Intrinsic.Control.If(V.ODBC.Con!rstB.EOF,=,False)
+'				F.Intrinsic.String.Split(V.Local.sJobData,"~",V.Local.sJobData)
+'				V.Local.sJobData(4).Set(V.ODBC.Con!rstB.FieldValTrim!SAR)
+'					F.Intrinsic.String.Join(V.Local.sJobData,"~",V.Local.sJobData)
+'					V.Local.bNest.Set(True)
+'			F.Intrinsic.Control.Else
+'					V.Local.bNest.Set(False)
+'				F.Intrinsic.String.Concat("select NESTING_INTRFC from V_WORKCENTERS where MACHINE='",V.Local.sWC,"' and NESTING_INTRFC='Y'",V.Local.sSelC)
+'				F.ODBC.Connection!Con.OpenRecordsetRO("rstC",V.Local.sSelC)
+'					F.Intrinsic.Control.If(V.ODBC.Con!rstC.EOF,=,False)
+'						F.Intrinsic.Control.If(V.ODBC.Con!rstC.FieldValTrim!NESTING_INTERFC,=,"Y")
+'							V.Local.bNest.Set(True)
+'						F.Intrinsic.Control.Else
+'							V.Local.bNest.Set(False)
+'						F.Intrinsic.Control.EndIf
+'					F.Intrinsic.Control.EndIf
+'				F.ODBC.Con!rstC.Close
+'			F.Intrinsic.Control.EndIf
+'		F.ODBC.Con!rstB.Close
+'
+'
+'	F.Intrinsic.Control.If(V.Local.bNest,=,True)
+				F.Intrinsic.String.Concat(V.Local.sMat,"~",V.Local.sSO,V.Local.sMat)
+				F.Intrinsic.String.Replace(V.Local.sJobData,"NCELLMAT",V.Local.sMat,V.Local.sJobData)
+				F.Intrinsic.String.Concat(V.Local.sJobData,V.Local.sAddtlSeq,V.Local.sJobData)
+'				F.Intrinsic.String.Concat(V.Local.sJobData,"~",V.Local.sSO,V.Local.sJobData)
+
+			F.Intrinsic.File.WriteLine(V.Local.lHndl,V.Local.sJobData)
+'	F.Intrinsic.Control.EndIf
+
+		F.ODBC.Con!rstX.MoveNext
+		F.Intrinsic.Control.Loop
+	F.ODBC.Con!rstX.Close
+
+F.Intrinsic.Debug.Stop
+'F.Intrinsic.Control.Next(V.Local.iFor)
+F.Intrinsic.File.CloseFile(V.Local.lHndl)
+'F.Intrinsic.Control.elseIf(V.Caller.Hook,=,15880)
+'000004=job-suff
+'000005=seq
+'000003=Y/N close seq
+'000010=wc
+'	F.Intrinsic.Control.If(V.Passed.000003,=,"Y")
+'		F.Intrinsic.File.OpenForWrite(V.Local.sNcellFile,V.Local.lHndl)
+
+'			F.Intrinsic.String.Concat("select V_JOB_HEADER.JOB + '-' + V_JOB_HEADER.SUFFIX as WO, V_JOB_OPERATIONS.SEQ,rtrim(V_JOB_HEADER.PART) as PART,rtrim(V_JOB_HEADER.DESCRIPTION) as DESCRIPTION,rtrim(V_JOB_OPERATIONS.PART) as WC, V_JOB_OPERATIONS.LMO,V_JOB_OPERATIONS.UNITS_OPEN,V_JOB_OPERATIONS.DATE_START,RTRIM(V_JOB_OPERATIONS.CODE_SORT_OPER) as CODE_SORT_OPER  from V_JOB_HEADER inner join V_JOB_OPERATIONS on V_JOB_HEADER.JOB=V_JOB_OPERATIONS.JOB and V_JOB_HEADER.SUFFIX=V_JOB_OPERATIONS.SUFFIX where V_JOB_OPERATIONS.PART='LAS1' and FLAG_SET_UP<>'Y' and V_JOB_OPERATIONS.FLAG_CLOSED<>'Y'","",V.Local.sSel)
+'			F.ODBC.Connection!Con.OpenRecordsetRO("rstX",V.Local.sSel)
+'				F.Intrinsic.Control.DoUntil(V.ODBC.Con!rstX.EOF,=,True)
+'					F.ODBC.Con!rstX.Record2String(V.Local.sJobData)
+'					F.Intrinsic.String.Replace(V.Local.sJobData,"*!*","~",V.Local.sJobData)
+'
+'					F.Intrinsic.String.Split(V.Local.sJobData,"~",V.Local.sJobSuff)
+'					F.Intrinsic.String.Split(V.Local.sJobSuff(0),"-",V.Local.sJob)
+'
+'				F.Intrinsic.String.Concat("select PART from JOB_OPERATIONS where LMO='M' and JOB='",V.Local.sJob(0),"' and SUFFIX='",V.Local.sJob(1),"' and SEQ<'",V.ODBC.Con!rstX.FieldVal!SEQ,"' and PART<>'' order by SEQ desc",V.Local.sSelB)
+'				F.ODBC.Connection!Con.OpenRecordsetRO("rstB",V.Local.sSelB)
+'					F.Intrinsic.Control.If(V.ODBC.Con!rstB.EOF,=,False)
+'						V.Local.sMat.Set(V.ODBC.Con!rstB.FieldValTrim!PART)
+'					F.Intrinsic.Control.Else
+'						V.Local.sMat.Set("")
+'					F.Intrinsic.Control.EndIf
+'				F.ODBC.Con!rstB.Close
+'
+'
+'				F.Intrinsic.String.Concat("select PART from JOB_OPERATIONS where LMO='L' and JOB='",V.Local.sJob(0),"' and SUFFIX='",V.Local.sJob(1),"' and SEQ>'",V.ODBC.Con!rstX.FieldVal!SEQ,"' and  FLAG_CLOSED<>'Y' and FLAG_SET_UP<>'Y' and PART<>'' order by SEQ",V.Local.sSelB)
+'				F.ODBC.Connection!Con.OpenRecordsetRO("rstB",V.Local.sSelB)
+'					F.Intrinsic.Control.DoUntil(V.ODBC.Con!rstB.EOF,=,True)
+'V.Local.sAddtlSeq.Set("")
+'						F.Intrinsic.Math.Add(V.Local.lFor,1,V.Local.lFor)
+'							F.Intrinsic.Control.If(V.Local.lFor,<=,3)
+'								F.Intrinsic.Control.If(V.Local.lFor,=,1)
+'									F.Intrinsic.String.Concat("~",V.ODBC.Con!rstB.FieldValTrim!PART,V.Local.sAddtlSeq)
+'								F.Intrinsic.Control.Else
+'									F.Intrinsic.String.Concat(V.Local.sAddtlSeq,"~",V.ODBC.Con!rstB.FieldValTrim!PART,V.Local.sAddtlSeq)
+'								F.Intrinsic.Control.EndIf
+'							F.Intrinsic.Control.Else
+'								F.Intrinsic.Control.ExitDo
+'							F.Intrinsic.Control.EndIf
+'					F.ODBC.Con!rstB.MoveNext
+'					F.Intrinsic.Control.Loop
+'				F.ODBC.Con!rstB.Close
+'
+'
+'				F.Intrinsic.String.Replace(V.Local.sJobData,"NCELLMAT",V.Local.sMat,V.Local.sJobData)
+'
+'					F.Intrinsic.File.WriteLine(V.Local.lHndl,V.Local.sJobData)
+'				F.ODBC.Con!rstX.MoveNext
+'				F.Intrinsic.Control.Loop
+'			F.ODBC.Con!rstX.Close
+'
+'		F.Intrinsic.File.CloseFile(V.Local.lHndl)
+
+'	F.Intrinsic.Control.EndIf
+'F.Intrinsic.Control.EndIf
+F.Intrinsic.UI.CloseWaitDialog
+F.ODBC.Connection!Con.Close
+F.Intrinsic.Control.End
+
+Program.Sub.Main.End
+
+
